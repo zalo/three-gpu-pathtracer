@@ -1,12 +1,20 @@
 import { searchForWorkspaceRoot } from 'vite';
 import fs from 'fs';
+import viteSlang from './third_party/vite-slang/src/index.js';
+
+const keyPath = '/tmp/certs/key.pem';
+const certPath = '/tmp/certs/cert.pem';
+const hasLocalCerts = fs.existsSync( keyPath ) && fs.existsSync( certPath );
 
 export default {
 
 	root: './example/',
-	base: '',
+	base: './',
+	plugins: [
+		viteSlang( { target: 'WGSL' } ),
+	],
 	build: {
-		outDir: './bundle/',
+		outDir: '../dist/',
 		sourcemap: true,
 		rollupOptions: {
 			input: fs
@@ -16,6 +24,12 @@ export default {
 		},
 	},
 	server: {
+		...( hasLocalCerts ? {
+			https: {
+				key: fs.readFileSync( keyPath ),
+				cert: fs.readFileSync( certPath ),
+			},
+		} : {} ),
 		fs: {
 			allow: [
 				// search up for workspace root
@@ -23,6 +37,7 @@ export default {
 			],
 		},
 	},
+	assetsInclude: [ '**/*.wasm' ],
 	optimizeDeps: {
     	exclude: [ 'three-mesh-bvh' ],
   	},

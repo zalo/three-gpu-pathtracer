@@ -107,3 +107,5 @@ dist
 example/dev-bundle
 .vscode/
 screenshots/current/
+wasm/build/
+dist/

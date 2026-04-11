@@ -1,0 +1,12 @@
+[submodule "third_party/tinybvh"]
+	path = third_party/tinybvh
+	url = https://github.com/jbikker/tinybvh.git
+[submodule "third_party/slangpy"]
+	path = third_party/slangpy
+	url = https://github.com/shader-slang/slangpy.git
+[submodule "third_party/openpbr-bsdf"]
+	path = third_party/openpbr-bsdf
+	url = https://github.com/adobe/openpbr-bsdf.git
+[submodule "third_party/vite-slang"]
+	path = third_party/vite-slang
+	url = https://github.com/CodyJasonBennett/vite-slang.git
