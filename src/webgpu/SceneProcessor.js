@@ -33,7 +33,7 @@ export class SceneProcessor {
 		const meshes = [];
 		scene.traverse( ( obj ) => {
 
-			if ( obj.isMesh && obj.geometry ) {
+			if ( obj.isMesh && obj.geometry && obj.material ) {
 
 				obj.updateWorldMatrix( true, false );
 				meshes.push( obj );
@@ -57,6 +57,7 @@ export class SceneProcessor {
 			const materials = Array.isArray( mesh.material ) ? mesh.material : [ mesh.material ];
 			for ( const mat of materials ) {
 
+				if ( ! mat ) continue;
 				if ( ! materialMap.has( mat.uuid ) ) {
 
 					materialMap.set( mat.uuid, { index: materialIndex ++, material: mat } );
@@ -249,7 +250,7 @@ export class SceneProcessor {
 					if ( triStart >= group.start && triStart < groupEnd ) {
 
 						const mat = materials[ group.materialIndex || 0 ];
-						matIdx = materialMap.get( mat.uuid ).index;
+						if ( mat && materialMap.has( mat.uuid ) ) matIdx = materialMap.get( mat.uuid ).index;
 						break;
 
 					}

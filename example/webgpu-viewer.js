@@ -13,7 +13,7 @@ import { WebGPUPathTracer } from '../src/webgpu/WebGPUPathTracer.js';
 import { SceneProcessor } from '../src/webgpu/SceneProcessor.js';
 
 const DEFAULT_MODEL_URL = 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/DragonDispersion/glTF-Binary/DragonDispersion.glb';
-const ENV_URL = 'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/wooden_studio_02_1k.hdr';
+const ENV_URL = 'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/citrus_orchard_puresky_1k.hdr';
 
 const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test( navigator.userAgent ) || ( 'ontouchstart' in window );
 const renderScale = isMobile ? 1 / 8 : 1;

@@ -82,7 +82,8 @@ export class PathTracingRenderer {
 			this._sceneProcessor = new SceneProcessor();
 			try {
 
-				const tinybvhUrl = new URL( '../../../example/libs/tinybvh.js', import.meta.url ).href;
+				// Resolve tinybvh relative to the page URL (it lives in example/libs/)
+				const tinybvhUrl = new URL( './libs/tinybvh.js', window.location.href ).href;
 				const { default: TinyBVH } = await import( /* @vite-ignore */ tinybvhUrl );
 				const mod = await TinyBVH( {
 					locateFile: ( p ) => {
@@ -100,6 +101,21 @@ export class PathTracingRenderer {
 
 			}
 
+			// Auto-load environment if URL was set before init completed
+			if ( this.environmentURL ) {
+
+				try {
+
+					await this._pathTracer.loadEnvironment( this.environmentURL );
+
+				} catch ( e ) {
+
+					console.warn( 'PathTracingRenderer: environment load failed:', e.message );
+
+				}
+
+			}
+
 			this._initialized = true;
 
 		} catch ( e ) {
@@ -111,6 +127,9 @@ export class PathTracingRenderer {
 	}
 
 	// ---- three.js Renderer API ----
+
+	get enableTLAS() { return this._pathTracer.enableTLAS; }
+	set enableTLAS( v ) { this._pathTracer.enableTLAS = v; }
 
 	get samples() {
 
@@ -157,31 +176,42 @@ export class PathTracingRenderer {
 
 	async render( scene, camera ) {
 
-		if ( ! this._initialized ) {
+		if ( this._rendering ) return;
+		this._rendering = true;
 
-			await this._initPromise;
-			if ( ! this._initialized ) return;
+		try {
+
+			if ( ! this._initialized ) {
+
+				await this._initPromise;
+				if ( ! this._initialized ) return;
+
+			}
+
+			// Check if scene needs rebuild
+			const sceneVer = this._computeSceneVersion( scene );
+			if ( sceneVer !== this._sceneVersion ) {
+
+				this._sceneVersion = sceneVer;
+				await this._rebuildScene( scene );
+
+			}
+
+			// Check if camera changed
+			if ( this._cameraChanged( camera ) ) {
+
+				this._updateCamera( camera );
+
+			}
+
+			// Render a sample
+			this._pathTracer.renderSample();
+
+		} finally {
+
+			this._rendering = false;
 
 		}
-
-		// Check if scene needs rebuild
-		const sceneVer = this._computeSceneVersion( scene );
-		if ( sceneVer !== this._sceneVersion ) {
-
-			this._sceneVersion = sceneVer;
-			await this._rebuildScene( scene );
-
-		}
-
-		// Check if camera changed
-		if ( this._cameraChanged( camera ) ) {
-
-			this._updateCamera( camera );
-
-		}
-
-		// Render a sample
-		this._pathTracer.renderSample();
 
 	}
 
