@@ -26,6 +26,11 @@ jobs:
         with:
           node-version: 22
 
+      - run: |
+          ls -la third_party/openpbr-bsdf/openpbr.h || echo "MISSING: openpbr-bsdf"
+          ls -la third_party/tinybvh/tiny_bvh.h || echo "MISSING: tinybvh"
+          ls -la third_party/vite-slang/src/index.js || echo "MISSING: vite-slang"
+
       - run: npm install
 
       - run: npx vite build
