@@ -9,4 +9,4 @@
 	url = https://github.com/adobe/openpbr-bsdf.git
 [submodule "third_party/vite-slang"]
 	path = third_party/vite-slang
-	url = https://github.com/CodyJasonBennett/vite-slang.git
+	url = https://github.com/zalo/vite-slang.git
