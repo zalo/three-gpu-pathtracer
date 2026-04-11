@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>WebGPU Path Tracer</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+		<style>
+			html, body {
+				margin: 0;
+				padding: 0;
+				background-color: #111;
+				overflow: hidden;
+			}
+
+			canvas {
+				display: block;
+				width: 100%;
+				height: 100%;
+			}
+
+			#drop-zone {
+				position: absolute;
+				top: 0;
+				left: 0;
+				width: 100%;
+				height: 100%;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				text-align: center;
+				font-family: 'Courier New', Courier, monospace;
+				color: white;
+				font-size: 24px;
+				box-sizing: border-box;
+				border: 12px solid transparent;
+				transition: border-color 0.2s, opacity 0.2s;
+				opacity: 0.2;
+				pointer-events: none;
+				z-index: 10;
+			}
+
+			#drop-zone.hidden {
+				display: none;
+			}
+
+			#drop-zone.drag-over {
+				border-color: white;
+				opacity: 1;
+			}
+
+			#progress-bar {
+				position: absolute;
+				top: 50%;
+				left: 50%;
+				transform: translate(-50%, -50%);
+				width: 320px;
+				z-index: 20;
+				font-family: 'Courier New', Courier, monospace;
+				color: #ccc;
+				font-size: 14px;
+				text-align: center;
+				display: none;
+			}
+
+			#progress-bar.visible {
+				display: block;
+			}
+
+			#progress-bar .bar-bg {
+				width: 100%;
+				height: 4px;
+				background: #333;
+				border-radius: 2px;
+				margin-top: 8px;
+				overflow: hidden;
+			}
+
+			#progress-bar .bar-fill {
+				height: 100%;
+				background: #fff;
+				border-radius: 2px;
+				width: 0%;
+				transition: width 0.15s;
+			}
+
+			#info {
+				position: absolute;
+				bottom: 16px;
+				left: 16px;
+				font-family: 'Courier New', Courier, monospace;
+				color: #aaa;
+				font-size: 14px;
+				z-index: 10;
+			}
+		</style>
+
+		<script type="module" crossorigin src="./assets/webgpu-viewer-Cq8ciHDi.js"></script>
+		<link rel="modulepreload" crossorigin href="./assets/modulepreload-polyfill-B5Qt9EMX.js">
+		<link rel="modulepreload" crossorigin href="./assets/three.module-gsNnXbou.js">
+		<link rel="modulepreload" crossorigin href="./assets/BufferGeometryUtils-GkzNatO-.js">
+		<link rel="modulepreload" crossorigin href="./assets/GLTFLoader-CT_uZDNq.js">
+		<link rel="modulepreload" crossorigin href="./assets/DRACOLoader-BOkT2YWz.js">
+		<link rel="modulepreload" crossorigin href="./assets/OrbitControls-B4oCwdWg.js">
+		<link rel="modulepreload" crossorigin href="./assets/HDRLoader-B-ufHshA.js">
+	</head>
+	<body>
+		<canvas id="canvas"></canvas>
+		<div id="drop-zone">Drop GLTF/GLB file here</div>
+		<div id="progress-bar">
+			<div id="progress-label">Loading...</div>
+			<div class="bar-bg"><div class="bar-fill" id="progress-fill"></div></div>
+		</div>
+		<div id="info"></div>
+	</body>
+</html>
