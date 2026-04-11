@@ -55,6 +55,50 @@ HitInfo trace_ray(Ray ray)
     return traverse_bvh(g_bvh_nodes, g_prim_indices, g_bvh_vertices, ray);
 }
 
+// Trace shadow ray through transmissive surfaces, accumulating tint.
+// Returns transmission factor (float3(0) = fully occluded, float3(1) = fully visible).
+float3 trace_shadow_transmissive(Ray shadow_ray)
+{
+    float3 transmission = float3(1.0);
+    uint max_shadow = g_uniforms.max_shadow_bounces;
+
+    for (uint i = 0; i < max_shadow; i++)
+    {
+        HitInfo hit = trace_ray(shadow_ray);
+
+        if (!hit_is_valid(hit) || hit.t >= shadow_ray.t_max)
+            break; // Reached environment — not occluded
+
+        // Look up material at hit point
+        uint mat_id = g_material_ids[hit.prim_idx];
+        MaterialGPU mat = g_materials[mat_id];
+        float mat_transmission = mat.roughness_ior_trans_coat.z;
+
+        if (mat_transmission > 0.0)
+        {
+            // Transmissive surface — accumulate tint and continue
+            float3 base_color = mat_base_color(mat);
+            float4 base_tex = sample_texture(mat.tex_indices.x, interpolate_vertex(hit).uv);
+            base_color *= base_tex.xyz;
+            transmission *= base_color * mat_transmission;
+
+            // Continue ray past this surface
+            Vertex v = interpolate_vertex(hit);
+            float3 N = v.normal;
+            bool entering = dot(N, shadow_ray.dir) < 0.0;
+            float3 offset = entering ? -N : N;
+            shadow_ray.origin = v.position + offset * 1e-4;
+            shadow_ray.t_min = 0.0;
+            continue;
+        }
+
+        // Opaque surface — fully occluded
+        return float3(0.0);
+    }
+
+    return transmission;
+}
+
 static const float EPSILON = 1e-7;
 
 float4 sample_texture(int tex_idx, float2 uv)
@@ -279,8 +323,28 @@ void main(uint3 tid: SV_DispatchThreadID)
 
             float3 V = -ray.dir;
 
+            // ---- Prepare OpenPBR BSDF (used by both NEE and bounce sampling) ----
+            OpenPBR_ResolvedInputs inputs = openpbr_make_default_resolved_inputs();
+            inputs.base_weight = 1.0;
+            inputs.base_color = base_color;
+            inputs.base_metalness = metalness;
+            inputs.specular_weight = 1.0;
+            inputs.specular_roughness = roughness;
+            inputs.specular_ior = ior;
+            inputs.transmission_weight = transmission;
+            inputs.coat_weight = coat_weight;
+            inputs.coat_roughness = coat_roughness;
+            inputs.emission_color = emission_color;
+            inputs.emission_luminance = emission_lum;
+            inputs.geometry_basis = openpbr_make_basis(shading_normal, shading_tangent, vertex.tangent.w * backface_sign);
+            inputs.geometry_coat_basis = inputs.geometry_basis;
+
+            float3 view_dir = V;
+            OpenPBR_PreparedBsdf prepared = openpbr_prepare(
+                inputs, throughput, OpenPBR_BaseRgbWavelengths_nm, OpenPBR_VacuumIor, view_dir);
+
             // ---- NEE: Direct lighting from environment ----
-            if (use_nee && bounce < 4 && transmission < 0.5)
+            if (use_nee && bounce < 4)
             {
                 float env_pdf;
                 float3 env_dir = sample_env_direction(rng_next2(rng), env_pdf);
@@ -288,28 +352,37 @@ void main(uint3 tid: SV_DispatchThreadID)
 
                 if (NdotL_env > 0.0 && env_pdf > EPSILON)
                 {
-                    // Shadow ray
+                    // Shadow ray with transmissive surface handling
                     Ray shadow_ray;
                     shadow_ray.origin = vertex.position + geom_normal * 1e-4;
                     shadow_ray.dir = env_dir;
                     shadow_ray.t_min = 0.001;
                     shadow_ray.t_max = 1e30;
 
-                    bool in_shadow = check_occluded(shadow_ray);
+                    float3 shadow_transmission = trace_shadow_transmissive(shadow_ray);
 
-                    if (!in_shadow)
+                    if (any(shadow_transmission > 0.0))
                     {
                         float3 env_radiance = sample_env_radiance(env_dir);
-                        BRDFEval brdf_eval = eval_brdf(base_color, metalness, roughness, ior,
-                                                        V, env_dir, shading_normal);
 
-                        if (brdf_eval.pdf > EPSILON)
+                        // Use OpenPBR for NEE evaluation (consistent with bounce sampling)
+                        float brdf_pdf = openpbr_pdf(prepared, env_dir);
+
+                        if (brdf_pdf > EPSILON)
                         {
-                            float w = mis_weight(env_pdf, brdf_eval.pdf);
-                            float3 nee_contrib = throughput * brdf_eval.value * env_radiance * w / env_pdf;
-                            // Clamp to prevent fireflies from extreme env map values
-                            float nee_lum = dot(nee_contrib, float3(0.2126, 0.7152, 0.0722));
-                            if (nee_lum > 50.0) nee_contrib *= 50.0 / nee_lum;
+                            // Sample OpenPBR to get weight for this direction
+                            // weight = bsdf * cos / pdf, so bsdf * cos = weight * pdf
+                            // For NEE: contribution = throughput * (bsdf * cos) * env / env_pdf * MIS
+                            //                       = throughput * (weight * brdf_pdf) * env / env_pdf * MIS
+                            // But we can also just re-derive: use openpbr_sample with a
+                            // deterministic direction isn't available, so we use the GGX eval
+                            // but with the OpenPBR pdf for MIS consistency.
+                            BRDFEval brdf_eval = eval_brdf(base_color, metalness, roughness, ior,
+                                                            V, env_dir, shading_normal);
+
+                            float w = mis_weight(env_pdf, brdf_pdf);
+                            float3 nee_contrib = throughput * brdf_eval.value * env_radiance
+                                                 * shadow_transmission * w / env_pdf;
                             radiance += nee_contrib;
                         }
                     }
@@ -393,26 +466,6 @@ void main(uint3 tid: SV_DispatchThreadID)
             }
 
             // ---- BRDF Sampling for next bounce ----
-            // Build OpenPBR inputs
-            OpenPBR_ResolvedInputs inputs = openpbr_make_default_resolved_inputs();
-            inputs.base_weight = 1.0;
-            inputs.base_color = base_color;
-            inputs.base_metalness = metalness;
-            inputs.specular_weight = 1.0;
-            inputs.specular_roughness = roughness;
-            inputs.specular_ior = ior;
-            inputs.transmission_weight = transmission;
-            inputs.coat_weight = coat_weight;
-            inputs.coat_roughness = coat_roughness;
-            inputs.emission_color = emission_color;
-            inputs.emission_luminance = emission_lum;
-            inputs.geometry_basis = openpbr_make_basis(shading_normal, shading_tangent, vertex.tangent.w * backface_sign);
-            inputs.geometry_coat_basis = inputs.geometry_basis;
-
-            float3 view_dir = V;
-            OpenPBR_PreparedBsdf prepared = openpbr_prepare(
-                inputs, throughput, OpenPBR_BaseRgbWavelengths_nm, OpenPBR_VacuumIor, view_dir);
-
             float3 light_dir;
             OpenPBR_DiffuseSpecular weight;
             float pdf;

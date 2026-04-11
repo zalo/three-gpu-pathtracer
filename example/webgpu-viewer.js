@@ -13,7 +13,7 @@ import { WebGPUPathTracer } from '../src/webgpu/WebGPUPathTracer.js';
 import { SceneProcessor } from '../src/webgpu/SceneProcessor.js';
 
 const DEFAULT_MODEL_URL = 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/DragonDispersion/glTF-Binary/DragonDispersion.glb';
-const ENV_URL = 'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/citrus_orchard_puresky_1k.hdr';
+const ENV_URL = 'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/wooden_studio_02_1k.hdr';
 
 const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test( navigator.userAgent ) || ( 'ontouchstart' in window );
 const renderScale = isMobile ? 1 / 8 : 1;
@@ -59,6 +59,7 @@ async function init() {
 
 		pathTracer.sppPerDispatch = 1;
 		pathTracer.maxBounces = 4;
+		pathTracer.maxShadowBounces = 4;
 
 	}
 
@@ -272,11 +273,12 @@ async function processGLTF( gltf ) {
 	const size = box.getSize( new Vector3() );
 
 	gltf.scene.position.sub( center );
+	container.rotation.y = Math.PI;
 
 	const maxDim = Math.max( size.x, size.y, size.z );
 	const fov = camera.fov * ( Math.PI / 180 );
 	const distance = ( maxDim / ( 2 * Math.tan( fov / 2 ) ) ) * 1.5;
-	camera.position.set( 0, 0, distance );
+	camera.position.set( 0, 0, - distance );
 
 	camera.near = maxDim / 100;
 	camera.far = maxDim * 10;

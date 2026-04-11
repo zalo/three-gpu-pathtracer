@@ -30,6 +30,7 @@ export class WebGPUPathTracer {
 
 		// Configurable rendering parameters
 		this.maxBounces = 8;
+		this.maxShadowBounces = 8;
 		this.sppPerDispatch = 4;
 
 		// Performance tracking
@@ -515,6 +516,7 @@ export class WebGPUPathTracer {
 		uints[ 18 ] = this.width;
 		uints[ 19 ] = this.height;
 		uints[ 20 ] = this.sppPerDispatch;
+		uints[ 21 ] = this.maxShadowBounces;
 
 		this.device.queue.writeBuffer( this.bufferManager.getBuffer( 'ptUniforms' ), 0, this._uniformData );
 		this.sampleCount = 0;
@@ -530,6 +532,7 @@ export class WebGPUPathTracer {
 		uints[ 16 ] = this.sampleCount;
 		uints[ 17 ] = this.maxBounces;
 		uints[ 20 ] = this.sppPerDispatch;
+		uints[ 21 ] = this.maxShadowBounces;
 		this.device.queue.writeBuffer( this.bufferManager.getBuffer( 'ptUniforms' ), 0, this._uniformData );
 
 		// Update accumulate uniforms

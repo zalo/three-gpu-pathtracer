@@ -97,7 +97,7 @@ struct PathTracerUniforms
     uint   width;
     uint   height;
     uint   spp_per_dispatch;
-    uint   _pad_uniforms0;
+    uint   max_shadow_bounces;
     uint   _pad_uniforms1;
     uint   _pad_uniforms2;
 };
