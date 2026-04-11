@@ -21,6 +21,13 @@ export default {
 				.readdirSync( './example/' )
 				.filter( p => /\.html$/.test( p ) )
 				.map( p => `./example/${ p }` ),
+			output: {
+				// Keep WASM filenames unhashed so Emscripten's locateFile can find them
+				assetFileNames: ( assetInfo ) =>
+					assetInfo.name && assetInfo.name.endsWith( '.wasm' )
+						? 'assets/[name][extname]'
+						: 'assets/[name]-[hash][extname]',
+			},
 		},
 	},
 	server: {
