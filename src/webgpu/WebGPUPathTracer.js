@@ -31,7 +31,7 @@ export class WebGPUPathTracer {
 		// Configurable rendering parameters
 		this.maxBounces = 8;
 		this.maxShadowBounces = 8;
-		this.sppPerDispatch = 4;
+		this.sppPerDispatch = 1;
 
 		// Performance tracking
 		this._perfLastTime = 0;
