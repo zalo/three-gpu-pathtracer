@@ -47,6 +47,7 @@ export class PathTracingRenderer {
 		this.renderScale = params.renderScale || 1;
 		this.environmentURL = null;
 		this.environmentIntensity = 1;
+		this._tinybvhURL = params.tinybvhURL || null;
 
 		// Internal state
 		this._pathTracer = new WebGPUPathTracer();
@@ -82,8 +83,8 @@ export class PathTracingRenderer {
 			this._sceneProcessor = new SceneProcessor();
 			try {
 
-				// Resolve tinybvh relative to the page URL (it lives in example/libs/)
-				const tinybvhUrl = new URL( './libs/tinybvh.js', window.location.href ).href;
+				const tinybvhUrl = this._tinybvhURL
+					|| new URL( './libs/tinybvh.js', window.location.href ).href;
 				const { default: TinyBVH } = await import( /* @vite-ignore */ tinybvhUrl );
 				const mod = await TinyBVH( {
 					locateFile: ( p ) => {

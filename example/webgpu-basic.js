@@ -28,7 +28,10 @@ async function init() {
 	canvas.height = Math.floor( window.innerHeight * window.devicePixelRatio );
 
 	// Create path tracing renderer (drop-in three.js replacement)
-	renderer = new PathTracingRenderer( { canvas } );
+	renderer = new PathTracingRenderer( {
+		canvas,
+		tinybvhURL: new URL( './libs/tinybvh.js', import.meta.url ).href,
+	} );
 	renderer.setSize( window.innerWidth, window.innerHeight );
 	renderer.setPixelRatio( isMobile ? 0.5 : window.devicePixelRatio );
 	renderer.environmentURL = ENV_URL;
