@@ -14,13 +14,14 @@ struct AccumulateUniforms
 [[vk::binding(2, 0)]] RWStructuredBuffer<float4>     g_display;     // tonemapped output
 [[vk::binding(3, 0)]] ConstantBuffer<AccumulateUniforms> g_uniforms;
 
-float3 aces_tonemap(float3 x)
+float3 aces_film(float3 x)
 {
-    float a = 2.51f;
-    float b = 0.03f;
-    float c = 2.43f;
-    float d = 0.59f;
-    float e = 0.14f;
+    x *= 0.6;
+    float a = 2.51;
+    float b = 0.03;
+    float c = 2.43;
+    float d = 0.59;
+    float e = 0.14;
     return saturate((x * (a * x + b)) / (x * (c * x + d) + e));
 }
 
@@ -52,10 +53,9 @@ void main(uint3 tid: SV_DispatchThreadID)
 
     g_accumulator[idx] = accum;
 
-    // Normalize and tone map
+    // Normalize and tone map (matching SlangRenderer's aces_film)
     float3 color = accum.xyz / accum.w;
-    color *= 0.5; // exposure
-    color = aces_tonemap(color);
+    color = aces_film(color);
     color = linear_to_srgb(color);
 
     g_display[idx] = float4(color, 1.0);

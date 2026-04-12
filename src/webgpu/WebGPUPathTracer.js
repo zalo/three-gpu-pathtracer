@@ -29,7 +29,7 @@ export class WebGPUPathTracer {
 		this.hasScene = false;
 
 		// Configurable rendering parameters
-		this.maxBounces = 8;
+		this.maxBounces = 4;
 		this.maxShadowBounces = 8;
 		this.sppPerDispatch = 1;
 
@@ -369,10 +369,41 @@ export class WebGPUPathTracer {
 		if ( this.hasScene ) {
 
 			this._createAccumulateBindGroup();
+			this._rebuildPathTraceBindGroup();
 
 		}
 
 		this.sampleCount = 0;
+
+	}
+
+	_rebuildPathTraceBindGroup() {
+
+		const bm = this.bufferManager;
+		const nodesBuffer = this._useTLAS ? bm.getBuffer( 'tlasNodes' ) : bm.getBuffer( 'bvhNodes' );
+		const primIdxBuffer = this._useTLAS ? bm.getBuffer( 'tlasPrimIndices' ) : bm.getBuffer( 'primIndices' );
+		const verticesBuffer = this._useTLAS ? bm.getBuffer( 'blasVertices' ) : bm.getBuffer( 'bvhVertices' );
+
+		this.pathTraceBindGroup0 = this.device.createBindGroup( {
+			layout: this.pipelineManager.pathTracePipeline.getBindGroupLayout( 0 ),
+			entries: [
+				{ binding: 0, resource: { buffer: nodesBuffer } },
+				{ binding: 1, resource: { buffer: primIdxBuffer } },
+				{ binding: 2, resource: { buffer: verticesBuffer } },
+				{ binding: 3, resource: { buffer: bm.getBuffer( 'vertices' ) } },
+				{ binding: 4, resource: { buffer: bm.getBuffer( 'indices' ) } },
+				{ binding: 5, resource: { buffer: bm.getBuffer( 'materials' ) } },
+				{ binding: 6, resource: { buffer: bm.getBuffer( 'materialIds' ) } },
+				{ binding: 7, resource: { buffer: bm.getBuffer( 'renderOutput' ) } },
+				{ binding: 8, resource: { buffer: bm.getBuffer( 'ptUniforms' ) } },
+				{ binding: 9, resource: { buffer: bm.getBuffer( 'envParams' ) } },
+				{ binding: 10, resource: { buffer: bm.getBuffer( 'lights' ) } },
+				{ binding: 11, resource: { buffer: bm.getBuffer( 'lightCount' ) } },
+				{ binding: 12, resource: { buffer: bm.getBuffer( 'blasNodes' ) } },
+				{ binding: 13, resource: { buffer: bm.getBuffer( 'blasPrimIndices' ) } },
+				{ binding: 14, resource: { buffer: bm.getBuffer( 'instanceData' ) } },
+			],
+		} );
 
 	}
 

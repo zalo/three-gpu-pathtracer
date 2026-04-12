@@ -74,6 +74,9 @@ float3 trace_shadow_transmissive(Ray shadow_ray)
         MaterialGPU mat = g_materials[mat_id];
         float mat_transmission = mat.roughness_ior_trans_coat.z;
 
+        // DEBUG: Force opaque for AO diagnosis (matches white diffuse override)
+        mat_transmission = 0.0;
+
         if (mat_transmission > 0.0)
         {
             // Transmissive surface — accumulate tint and continue
@@ -245,8 +248,9 @@ void main(uint3 tid: SV_DispatchThreadID)
 
             if (!hit_is_valid(hit))
             {
-                // Sky/environment hit
+                // Sky/environment hit — always sample env map (keeps binding alive for compiler)
                 float3 env_color = sample_env_radiance(ray.dir);
+                float env_pdf = get_env_pdf(ray.dir);
 
                 if (bounce == 0 || !use_nee)
                 {
@@ -256,7 +260,6 @@ void main(uint3 tid: SV_DispatchThreadID)
                 else
                 {
                     // MIS: weight BRDF-sampled environment against NEE
-                    float env_pdf = get_env_pdf(ray.dir);
                     float w = mis_weight(last_brdf_pdf, env_pdf);
                     radiance += throughput * env_color * w;
                 }
@@ -291,6 +294,17 @@ void main(uint3 tid: SV_DispatchThreadID)
 
             // Roughness clamping to avoid delta distributions / fireflies
             roughness = clamp(roughness, 0.01, 1.0);
+
+            // DEBUG: Force white diffuse material for AO diagnosis
+            base_color = float3(1.0);
+            metalness = 0.0;
+            roughness = 1.0;
+            ior = 1.5;
+            transmission = 0.0;
+            coat_weight = 0.0;
+            coat_roughness = 0.0;
+            emission_color = float3(0.0);
+            emission_lum = 0.0;
 
             // Emission (use higher mip for secondary bounces to reduce fireflies)
             if (emission_lum > 0.0)
@@ -328,7 +342,9 @@ void main(uint3 tid: SV_DispatchThreadID)
             inputs.base_weight = 1.0;
             inputs.base_color = base_color;
             inputs.base_metalness = metalness;
+            inputs.base_diffuse_roughness = 0.0;
             inputs.specular_weight = 1.0;
+            inputs.specular_color = float3(1.0);
             inputs.specular_roughness = roughness;
             inputs.specular_ior = ior;
             inputs.transmission_weight = transmission;
@@ -341,7 +357,7 @@ void main(uint3 tid: SV_DispatchThreadID)
 
             float3 view_dir = V;
             OpenPBR_PreparedBsdf prepared = openpbr_prepare(
-                inputs, throughput, OpenPBR_BaseRgbWavelengths_nm, OpenPBR_VacuumIor, view_dir);
+                inputs, float3(1.0), OpenPBR_BaseRgbWavelengths_nm, OpenPBR_VacuumIor, view_dir);
 
             // ---- NEE: Direct lighting from environment ----
             if (use_nee && bounce < 4)
@@ -365,26 +381,19 @@ void main(uint3 tid: SV_DispatchThreadID)
                     {
                         float3 env_radiance = sample_env_radiance(env_dir);
 
-                        // Use OpenPBR for NEE evaluation (consistent with bounce sampling)
+                        // Evaluate OpenPBR BSDF for NEE (includes cosine term)
+                        float3 brdf_cos = openpbr_get_sum_of_diffuse_specular(
+                            openpbr_eval(prepared, env_dir));
+
+                        // Get BRDF PDF for MIS
                         float brdf_pdf = openpbr_pdf(prepared, env_dir);
 
-                        if (brdf_pdf > EPSILON)
-                        {
-                            // Sample OpenPBR to get weight for this direction
-                            // weight = bsdf * cos / pdf, so bsdf * cos = weight * pdf
-                            // For NEE: contribution = throughput * (bsdf * cos) * env / env_pdf * MIS
-                            //                       = throughput * (weight * brdf_pdf) * env / env_pdf * MIS
-                            // But we can also just re-derive: use openpbr_sample with a
-                            // deterministic direction isn't available, so we use the GGX eval
-                            // but with the OpenPBR pdf for MIS consistency.
-                            BRDFEval brdf_eval = eval_brdf(base_color, metalness, roughness, ior,
-                                                            V, env_dir, shading_normal);
+                        // MIS weight for environment sampling (power heuristic)
+                        float w = mis_weight(env_pdf, brdf_pdf);
 
-                            float w = mis_weight(env_pdf, brdf_pdf);
-                            float3 nee_contrib = throughput * brdf_eval.value * env_radiance
-                                                 * shadow_transmission * w / env_pdf;
-                            radiance += nee_contrib;
-                        }
+                        float3 nee_contrib = throughput * brdf_cos * env_radiance
+                                             * shadow_transmission * w / env_pdf;
+                        radiance += nee_contrib;
                     }
                 }
             }
@@ -458,9 +467,9 @@ void main(uint3 tid: SV_DispatchThreadID)
 
                     if (!check_occluded(shadow_ray))
                     {
-                        BRDFEval brdf_eval = eval_brdf(base_color, metalness, roughness, ior,
-                                                        V, L, shading_normal);
-                        radiance += throughput * brdf_eval.value * light_color * attenuation;
+                        OpenPBR_DiffuseSpecular light_ds = openpbr_eval(prepared, L);
+                        float3 light_brdf_cos = openpbr_get_sum_of_diffuse_specular(light_ds);
+                        radiance += throughput * light_brdf_cos * light_color * attenuation;
                     }
                 }
             }
@@ -478,15 +487,8 @@ void main(uint3 tid: SV_DispatchThreadID)
             throughput *= bsdf_weight;
             last_brdf_pdf = pdf;
 
-            // Throughput-based termination (from SlangRenderer)
-            if (bounce > 2)
-            {
-                float p = max(throughput.x, max(throughput.y, throughput.z));
-                if (p < 0.001) break;
-                // Russian roulette
-                if (rng_next(rng) > p) break;
-                throughput /= p;
-            }
+            // Throughput-based termination (matching SlangRenderer)
+            if (all(throughput < 0.001)) break;
 
             // Spawn next ray
             float3 offset_normal = (dot(light_dir, geom_normal) > 0.0) ? geom_normal : -geom_normal;

@@ -93,7 +93,7 @@ float3 sample_env_direction(float2 rand, out float pdf)
     // Compute PDF in solid angle measure
     float lum_pdf = g_luminance_pdf.Load(int3(col, row, 0)).r;
     float theta = PI * v;
-    float sin_theta = max(sin(theta), 1e-8);
+    float sin_theta = max(sin(theta), 1e-6);
     pdf = lum_pdf * float(w * h) / (TWO_PI * PI * sin_theta);
 
     return env_uv_to_direction(float2(u, v));
@@ -111,8 +111,8 @@ float get_env_pdf(float3 dir)
 
     float lum_pdf = g_luminance_pdf.Load(int3(col, row, 0)).r;
     float theta = PI * uv.y;
-    float sin_theta = max(sin(theta), 1e-8);
-    return lum_pdf * float(w * h) / (TWO_PI * PI * sin_theta);
+    float sin_theta = max(sin(theta), 1e-6);
+    return max(lum_pdf * float(w * h) / (TWO_PI * PI * sin_theta), 1e-6);
 }
 
 // Sample environment radiance for a given direction
