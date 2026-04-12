@@ -74,8 +74,8 @@ float3 trace_shadow_transmissive(Ray shadow_ray)
         MaterialGPU mat = g_materials[mat_id];
         float mat_transmission = mat.roughness_ior_trans_coat.z;
 
-        // DEBUG: Force opaque for AO diagnosis (matches white diffuse override)
-        mat_transmission = 0.0;
+        // // DEBUG: Force opaque for AO diagnosis (matches white diffuse override)
+        // mat_transmission = 0.0;
 
         if (mat_transmission > 0.0)
         {
@@ -295,16 +295,16 @@ void main(uint3 tid: SV_DispatchThreadID)
             // Roughness clamping to avoid delta distributions / fireflies
             roughness = clamp(roughness, 0.01, 1.0);
 
-            // DEBUG: Force white diffuse material for AO diagnosis
-            base_color = float3(1.0);
-            metalness = 0.0;
-            roughness = 1.0;
-            ior = 1.5;
-            transmission = 0.0;
-            coat_weight = 0.0;
-            coat_roughness = 0.0;
-            emission_color = float3(0.0);
-            emission_lum = 0.0;
+            // // DEBUG: Force white diffuse material for AO diagnosis
+            // base_color = float3(1.0);
+            // metalness = 0.0;
+            // roughness = 1.0;
+            // ior = 1.5;
+            // transmission = 0.0;
+            // coat_weight = 0.0;
+            // coat_roughness = 0.0;
+            // emission_color = float3(0.0);
+            // emission_lum = 0.0;
 
             // Emission (use higher mip for secondary bounces to reduce fireflies)
             if (emission_lum > 0.0)
