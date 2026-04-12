@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>WebGPU Basic Path Tracing</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+		<style>
+			html, body {
+				margin: 0;
+				padding: 0;
+				background-color: #111;
+				overflow: hidden;
+			}
+			canvas {
+				display: block;
+				width: 100%;
+				height: 100%;
+			}
+			#info {
+				position: absolute;
+				bottom: 16px;
+				left: 16px;
+				font-family: 'Courier New', Courier, monospace;
+				color: #aaa;
+				font-size: 14px;
+				z-index: 10;
+			}
+		</style>
+		<script type="module" crossorigin src="./assets/webgpu-basic-CM1-FWAo.js"></script>
+		<link rel="modulepreload" crossorigin href="./assets/modulepreload-polyfill-B5Qt9EMX.js">
+		<link rel="modulepreload" crossorigin href="./assets/three.module-Blrp6k_f.js">
+		<link rel="modulepreload" crossorigin href="./assets/OrbitControls-Dj5eCKTt.js">
+		<link rel="modulepreload" crossorigin href="./assets/HDRLoader-BzzhXPKe.js">
+		<link rel="modulepreload" crossorigin href="./assets/SceneProcessor-RKFk9Qoc.js">
+	</head>
+	<body>
+		<canvas id="canvas"></canvas>
+		<div id="info"></div>
+	</body>
+</html>
