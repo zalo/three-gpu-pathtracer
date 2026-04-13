@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>WebGPU Cornell Box Path Tracing</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+		<style>
+			html, body {
+				margin: 0;
+				padding: 0;
+				background-color: #111;
+				overflow: hidden;
+			}
+			canvas {
+				display: block;
+				width: 100%;
+				height: 100%;
+			}
+			#info {
+				position: absolute;
+				bottom: 16px;
+				left: 16px;
+				font-family: 'Courier New', Courier, monospace;
+				color: #aaa;
+				font-size: 14px;
+				z-index: 10;
+			}
+		</style>
+		<script type="module" crossorigin src="./assets/webgpu-cornell-Dkr0hUn0.js"></script>
+		<link rel="modulepreload" crossorigin href="./assets/modulepreload-polyfill-B5Qt9EMX.js">
+		<link rel="modulepreload" crossorigin href="./assets/three.module-BlizGQtD.js">
+		<link rel="modulepreload" crossorigin href="./assets/OrbitControls-y1npF8Aj.js">
+		<link rel="modulepreload" crossorigin href="./assets/HDRLoader-CQNImENg.js">
+		<link rel="modulepreload" crossorigin href="./assets/SceneProcessor-DecFDOZ9.js">
+		<link rel="modulepreload" crossorigin href="./assets/PathTracingRenderer-Dl1vdycA.js">
+	</head>
+	<body>
+		<canvas id="canvas"></canvas>
+		<div id="info"></div>
+	</body>
+</html>

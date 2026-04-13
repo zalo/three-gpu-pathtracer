@@ -1,0 +1,2 @@
+import{c as i}from"./three.module-BlizGQtD.js";class d extends i{set needsUpdate(t){super.needsUpdate=!0,this.dispatchEvent({type:"recompilation"})}constructor(t){super(t);for(const e in this.uniforms)Object.defineProperty(this,e,{get(){return this.uniforms[e].value},set(s){this.uniforms[e].value=s}})}setDefine(t,e=void 0){if(e==null){if(t in this.defines)return delete this.defines[t],this.needsUpdate=!0,!0}else if(this.defines[t]!==e)return this.defines[t]=e,this.needsUpdate=!0,!0;return!1}}export{d as M};
+//# sourceMappingURL=MaterialBase-BmsiZXtT.js.map
