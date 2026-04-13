@@ -336,8 +336,9 @@ void main(uint3 tid: SV_DispatchThreadID)
             }
 
             float3 V = -ray.dir;
+            bool entering = dot(vertex.normal, ray.dir) < 0.0;
 
-            // ---- Prepare OpenPBR BSDF (used by both NEE and bounce sampling) ----
+            // ---- Prepare OpenPBR BSDF (matching SlangRenderer's make_openpbr_inputs) ----
             OpenPBR_ResolvedInputs inputs = openpbr_make_default_resolved_inputs();
             inputs.base_weight = 1.0;
             inputs.base_color = base_color;
@@ -348,16 +349,17 @@ void main(uint3 tid: SV_DispatchThreadID)
             inputs.specular_roughness = roughness;
             inputs.specular_ior = ior;
             inputs.transmission_weight = transmission;
-            inputs.coat_weight = coat_weight;
-            inputs.coat_roughness = coat_roughness;
-            inputs.emission_color = emission_color;
-            inputs.emission_luminance = emission_lum;
-            inputs.geometry_basis = openpbr_make_basis(shading_normal, shading_tangent, vertex.tangent.w * backface_sign);
-            inputs.geometry_coat_basis = inputs.geometry_basis;
+            inputs.geometry_thin_walled = (ior <= 1.01);
+            inputs.emission_luminance = 0.0;
+            inputs.emission_color = float3(1.0);
+            OpenPBR_Basis basis = openpbr_make_basis(shading_normal);
+            inputs.geometry_basis = basis;
+            inputs.geometry_coat_basis = basis;
 
-            float3 view_dir = V;
+            // When inside a medium (exiting), exterior IOR = material IOR
+            float exterior_ior = entering ? OpenPBR_VacuumIor : ior;
             OpenPBR_PreparedBsdf prepared = openpbr_prepare(
-                inputs, float3(1.0), OpenPBR_BaseRgbWavelengths_nm, OpenPBR_VacuumIor, view_dir);
+                inputs, float3(1.0), OpenPBR_BaseRgbWavelengths_nm, exterior_ior, V);
 
             // ---- NEE: Direct lighting from environment ----
             if (use_nee && bounce < 4)
@@ -368,12 +370,11 @@ void main(uint3 tid: SV_DispatchThreadID)
 
                 if (NdotL_env > 0.0 && env_pdf > EPSILON)
                 {
-                    // Shadow ray with transmissive surface handling
                     Ray shadow_ray;
                     shadow_ray.origin = vertex.position + geom_normal * 1e-4;
                     shadow_ray.dir = env_dir;
-                    shadow_ray.t_min = 0.001;
-                    shadow_ray.t_max = 1e30;
+                    shadow_ray.t_min = 0.0;
+                    shadow_ray.t_max = 1e6;
 
                     float3 shadow_transmission = trace_shadow_transmissive(shadow_ray);
 
@@ -381,19 +382,14 @@ void main(uint3 tid: SV_DispatchThreadID)
                     {
                         float3 env_radiance = sample_env_radiance(env_dir);
 
-                        // Evaluate OpenPBR BSDF for NEE (includes cosine term)
+                        // Evaluate OpenPBR BSDF (includes cosine term)
                         float3 brdf_cos = openpbr_get_sum_of_diffuse_specular(
                             openpbr_eval(prepared, env_dir));
-
-                        // Get BRDF PDF for MIS
                         float brdf_pdf = openpbr_pdf(prepared, env_dir);
-
-                        // MIS weight for environment sampling (power heuristic)
                         float w = mis_weight(env_pdf, brdf_pdf);
 
-                        float3 nee_contrib = throughput * brdf_cos * env_radiance
-                                             * shadow_transmission * w / env_pdf;
-                        radiance += nee_contrib;
+                        radiance += throughput * brdf_cos * env_radiance
+                                    * shadow_transmission * w / env_pdf;
                     }
                 }
             }
@@ -408,8 +404,8 @@ void main(uint3 tid: SV_DispatchThreadID)
                     uint light_type = uint(light.color_type.w);
                     float3 light_color = light.color_type.xyz;
 
-                    float3 L;        // direction to light
-                    float light_dist; // distance to light
+                    float3 L;
+                    float light_dist;
                     float attenuation = 1.0;
 
                     if (light_type == LIGHT_DIRECTIONAL)
@@ -422,7 +418,6 @@ void main(uint3 tid: SV_DispatchThreadID)
                         float3 to_light = light.position_distance.xyz - vertex.position;
                         light_dist = length(to_light);
                         L = to_light / light_dist;
-                        float decay = 2.0; // physically-based inverse square
                         attenuation = 1.0 / max(light_dist * light_dist, 0.001);
                         float max_dist = light.position_distance.w;
                         if (max_dist > 0.0 && light_dist > max_dist) attenuation = 0.0;
@@ -444,7 +439,6 @@ void main(uint3 tid: SV_DispatchThreadID)
                     }
                     else if (light_type == LIGHT_AMBIENT)
                     {
-                        // Ambient: add directly, no shadow
                         radiance += throughput * base_color * light_color;
                         continue;
                     }
@@ -458,17 +452,16 @@ void main(uint3 tid: SV_DispatchThreadID)
                     float NdotL = dot(shading_normal, L);
                     if (NdotL <= 0.0) continue;
 
-                    // Shadow ray
                     Ray shadow_ray;
                     shadow_ray.origin = vertex.position + geom_normal * 1e-4;
                     shadow_ray.dir = L;
-                    shadow_ray.t_min = 0.001;
+                    shadow_ray.t_min = 0.0;
                     shadow_ray.t_max = light_dist - 0.002;
 
                     if (!check_occluded(shadow_ray))
                     {
-                        OpenPBR_DiffuseSpecular light_ds = openpbr_eval(prepared, L);
-                        float3 light_brdf_cos = openpbr_get_sum_of_diffuse_specular(light_ds);
+                        float3 light_brdf_cos = openpbr_get_sum_of_diffuse_specular(
+                            openpbr_eval(prepared, L));
                         radiance += throughput * light_brdf_cos * light_color * attenuation;
                     }
                 }
@@ -476,25 +469,31 @@ void main(uint3 tid: SV_DispatchThreadID)
 
             // ---- BRDF Sampling for next bounce ----
             float3 light_dir;
-            OpenPBR_DiffuseSpecular weight;
+            OpenPBR_DiffuseSpecular ds_weight;
             float pdf;
             OpenPBR_BsdfLobeType sampled_type;
-            openpbr_sample(prepared, rng_next3(rng), light_dir, weight, pdf, sampled_type);
+            openpbr_sample(prepared, rng_next3(rng), light_dir, ds_weight, pdf, sampled_type);
 
-            if (pdf < EPSILON) break;
-
-            float3 bsdf_weight = openpbr_get_sum_of_diffuse_specular(weight);
-            throughput *= bsdf_weight;
-            last_brdf_pdf = pdf;
+            if (pdf > EPSILON)
+            {
+                throughput *= openpbr_get_sum_of_diffuse_specular(ds_weight);
+                last_brdf_pdf = pdf;
+            }
+            else
+            {
+                throughput = float3(0.0);
+                last_brdf_pdf = 0.0;
+            }
 
             // Throughput-based termination (matching SlangRenderer)
             if (all(throughput < 0.001)) break;
 
-            // Spawn next ray
-            float3 offset_normal = (dot(light_dir, geom_normal) > 0.0) ? geom_normal : -geom_normal;
-            ray.origin = vertex.position + offset_normal * 1e-4;
+            // Spawn next ray — use is_transmission flag for correct offset direction
+            bool is_transmission_sample = (sampled_type & OpenPBR_BsdfLobeTypeTransmission) != 0;
+            float3 offset = is_transmission_sample ? -geom_normal : geom_normal;
+            ray.origin = vertex.position + offset * 1e-4;
             ray.dir = light_dir;
-            ray.t_min = 0.001;
+            ray.t_min = 0.0;
             ray.t_max = 1e30;
         }
 
