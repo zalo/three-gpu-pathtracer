@@ -249,7 +249,8 @@ export class SceneProcessor {
 					const groupEnd = group.start + ( group.count === Infinity ? meshTriCount * 3 : group.count );
 					if ( triStart >= group.start && triStart < groupEnd ) {
 
-						const mat = materials[ group.materialIndex || 0 ];
+						const gi = group.materialIndex || 0;
+						const mat = materials[ gi < materials.length ? gi : 0 ];
 						if ( mat && materialMap.has( mat.uuid ) ) matIdx = materialMap.get( mat.uuid ).index;
 						break;
 
